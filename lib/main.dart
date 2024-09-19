@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:dotted_border/dotted_border.dart';
 
   void main() {
     runApp(const MyApp());
@@ -16,6 +17,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
     }
   }
 
+
   class DynamicTableScreen extends StatefulWidget {
     const DynamicTableScreen({super.key});
 
@@ -25,389 +27,376 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
   class _DynamicTableScreenState extends State<DynamicTableScreen> {
     List<List<Cell>> cells = [];
-    List<TextEditingController> headerControllers = [];
-    List<bool> columnSelected = [];
     List<double> columnWidths = [];
     List<double> rowHeights = [];
     int numRows = 2;
     int numCols = 2;
-    double defaultCellWidth = 150;
+    double defaultCellWidth = 125;
     double defaultCellHeight = 50;
-    final List<Color> _rowColors = List.generate(2, (_) => Colors.white);
-    final List<Color> _columnColors = List.generate(5, (_) => Colors.transparent);
-    
+    bool showResizeHandlers = false;
+    Map<String, int> tableSize = {
+    'rows': 0,
+    'columns': 0,
+  };
+  int? selectedRow;
+  int? selectedColumn;
+  Offset tablePosition = const Offset(100,100); // Initial position of the table
+  late double tableWidth ; // Initial table width
+  late double tableHeight ; // Initial table height
+
+  // Define these constants at the beginning of your class
+  final double minimumCellWidth = 50.0;  
+  final double minimumCellHeight = 30.0; 
+
 
     @override
     void initState() {
-      super.initState();
-      _initializeTableData();
-    }
+    super.initState();
+    // Initialize table with default size
+    _initializeTable(numRows, numCols);
 
-    void _initializeTableData() {
+  }
+
+  
+
+void _initializeTable(int rows, int cols) {
+    setState(() {
+      numRows = rows;
+      numCols = cols;
+
+      // Initialize the cells, columnSelected, columnWidths, rowHeights
+      columnWidths = List.generate(numCols, (index) => defaultCellWidth);
+      rowHeights = List.generate(numRows, (index) => defaultCellHeight);
       cells = List.generate(
-        numRows,
-        (row) => List.generate(
-          numCols,
-          (col) => Cell(
-              content: '',
-              controller: TextEditingController(),
-              color: Colors.white),
-        ),
-      );
-      headerControllers = List.generate(
-        numCols,
-        (col) => TextEditingController(text: 'Column ${col + 1}'),
-      );
-      columnSelected = List.generate(numCols, (_) => false);
-      columnWidths = List.generate(numCols, (_) => 150);
-      rowHeights = List.generate(numRows, (_) => 50);
-    }
+          numRows,
+          (row) => List.generate(
+              numCols,
+              (col) => Cell(content: '', controller: TextEditingController() ,color: Colors.white),));
 
-    void _addRow() {
-      setState(() {
-        numRows++;
-        cells.add(List.generate(numCols,
-            (col) => Cell(content: '', controller: TextEditingController())));
-        rowHeights.add(defaultCellHeight);
-      });
-    }
-
-    void _addColumn() {
-      setState(() {
-        numCols++;
-        columnSelected.add(false);
-        columnWidths.add(defaultCellWidth);
-        for (int i = 0; i < numRows; i++) {
-          cells[i].add(Cell(content: '', controller: TextEditingController()));
-        }
-        headerControllers.add(TextEditingController(text: 'Column $numCols'));
-      });
-    }
-
-    void _showEditDialog(int col) {
-      TextEditingController editController = TextEditingController(
-        text: headerControllers[col].text,
-      );
+               tableWidth = numCols * defaultCellWidth;
+               tableHeight = numRows * defaultCellHeight;
 
 
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Edit Column Name'),
-            content: TextField(
-              controller: editController,
-              decoration:
-                  const InputDecoration(hintText: 'Enter new column name'),
-            ),
-            actions: <Widget>[
-              ElevatedButton(
-                child: const Text('Cancel'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-              ElevatedButton(
-                child: const Text('Save'),
-                onPressed: () {
-                  setState(() {
-                    headerControllers[col].text = editController.text;
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
-    }
+      // Update the table size
+      _updateTableSize();
+    });
+  }
 
-    void _showAddDialog() {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Add Option'),
-            actions: <Widget>[
-              ElevatedButton(
-                child: const Text('Add Row'),
-                onPressed: () {
-                  _addRow();
-                  Navigator.of(context).pop();
-                },
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                child: const Text('Add Column'),
-                onPressed: () {
-                  _addColumn();
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
-    } 
+  // Method to track and update the size of the table
+void _updateTableSize() {
+    setState(() {
+      tableSize['rows'] = numRows;
+      tableSize['columns'] = numCols;
+      tableWidth = columnWidths.reduce((a, b)=>a+b);
+      tableHeight = rowHeights.reduce((a, b)=>a+b);
+  });
+}
 
+void _onMoveTable(DragUpdateDetails details) {
+    setState(() {
+      tablePosition += details.delta;
+    });
+  }
 
-    void _deleteRow(int row) {
+void _onCellTap(int row, int col) {
+ setState(() {
+     
+    // Reset the selected row and column if the user taps on another cell
+      selectedRow = row;
+      selectedColumn = col;
+
+      showResizeHandlers = true;
+      
+    });
+}
+
+void _deleteRow(int row) {
+      if(rowHeights.length <=1){
+        return;
+      }
       setState(() {
         cells.removeAt(row);
         numRows--;
         rowHeights.removeAt(row);
+
+        _updateTableSize();
       });
     }
 
-    void _deleteSelectedColumns() {
-      setState(() {
-        for (int i = columnSelected.length - 1; i >= 0; i--) {
-          if (columnSelected[i]) {
-            headerControllers.removeAt(i);
-            columnSelected.removeAt(i);
-            columnWidths.removeAt(i);
-            for (int j = 0; j < numRows; j++) {
-              cells[j].removeAt(i);
-            }
-            numCols--;
-          }
+void _deleteColumn(int col) {
+  if(columnWidths.length<=1){
+    return;
+  }
+  setState(() {
+    if (col >= 0 && col < numCols) {
+      // Remove the column from each row in the table
+      for (List<Cell> row in cells) {
+        if (row.length > col) {
+          row.removeAt(col);
         }
-      });
+      }
+      numCols--;
+
+      if (columnWidths.length > col) {
+        columnWidths.removeAt(col);
+      }
+    }
+    _updateTableSize();
+  });
+}
+
+
+void _showCellOptionsDialog(int row, int col) {
+  // Initial position of the dialog
+  Offset dialogPosition = const Offset(400, 100); // Default position
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return Stack(
+            children: [
+              Positioned(
+                left: dialogPosition.dx,
+                top: dialogPosition.dy,
+                child: GestureDetector(
+                  onPanUpdate: (details) {
+                    // Update dialog position during dragging
+                    setState(() {
+                      dialogPosition = Offset(
+                        dialogPosition.dx + details.delta.dx,
+                        dialogPosition.dy + details.delta.dy,
+                      );
+                    });
+                  },
+                  child: _cellDialogContent(row, col),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+Widget _cellDialogContent(int row, int col) {
+  return AlertDialog(
+    title: const Text('Choose your options'),
+    content: SizedBox(
+      width: 200,
+      height: 400,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          ElevatedButton(
+            onPressed: () {
+              _addRowAbove(row);
+              Navigator.of(context).pop();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_upward),
+                SizedBox(width: 8),
+                Text('Insert Row Above'),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _addRowBelow(row);
+              Navigator.of(context).pop();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_downward),
+                SizedBox(width: 8),
+                Text('Insert Row Below'),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _addColumnLeft(col);
+              Navigator.of(context).pop();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_back),
+                SizedBox(width: 8),
+                Text('Insert Column Left'),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _addColumnRight(col);
+              Navigator.of(context).pop();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.arrow_forward),
+                SizedBox(width: 8),
+                Text('Insert Column Right'),
+              ],
+            ),
+          ),
+           ElevatedButton(
+            onPressed: () {
+              _deleteRow(row);
+              Navigator.of(context).pop();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete),
+                SizedBox(width: 8),
+                Text('Delete Entire Row'),
+              ],
+            ),
+          ),
+           ElevatedButton(
+            onPressed: () {
+              _deleteColumn(col);
+              Navigator.of(context).pop();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete),
+                SizedBox(width: 8),
+                Text('Delete Entire Column'),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showColorPickerDialog(row, col);
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.format_color_fill),
+                SizedBox(width: 8),
+                Text("Fill Color"), 
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      ElevatedButton(
+        child: const Text('Cancel'),
+        onPressed: () {
+          Navigator.of(context).pop();
+        },
+      ),
+    ],
+  );
+}
+
+void _addColumnLeft(int col) {
+  setState(() {
+    numCols++;
+
+    // Set the width of the new column to match the adjacent column
+    double adjacentColumnWidth = columnWidths[col];
+    columnWidths.insert(col, adjacentColumnWidth);
+
+
+    // Insert the new column's cells with default properties
+    for (int i = 0; i < numRows; i++) {
+      cells[i].insert(col, Cell(content: '', controller: TextEditingController()));
+    }
+    selectedColumn=null;
+    selectedRow=null;
+
+
+    _updateTableSize(); // Update table size after adding column
+  });
+}
+
+void _addColumnRight(int col) {
+  setState(() {
+    numCols++;
+
+    // Set the width of the new column to match the adjacent column
+    double adjacentColumnWidth = columnWidths[col];
+    columnWidths.insert(col + 1, adjacentColumnWidth);
+
+
+    // Insert the new column's cells with default properties
+    for (int i = 0; i < numRows; i++) {
+      cells[i].insert(col + 1, Cell(content: '', controller: TextEditingController()));
     }
 
-    void _mergeTop(int row, int col) {
-  if (row > 0 &&
-      !cells[row][col].isMerged &&
-      !cells[row - 1][col].isMerged &&
-      cells[row - 1][col].rowSpan == 1 &&
-      cells[row - 1][col].colSpan == 1 &&
-      cells[row][col].colSpan == 1 &&
-      cells[row][col].rowSpan == 1) {
-    setState(() {
-      cells[row - 1][col].content = cells[row - 1][col].content.isEmpty
-          ? cells[row][col].content
-          : '${cells[row - 1][col].content}\n${cells[row][col].content}';
-      // Increase rowSpan of the top cell
-      cells[row - 1][col].rowSpan += cells[row][col].rowSpan;
-      // Mark the current cell as merged and reference the top cell
-      cells[row][col].isMerged = true;
-      cells[row][col].mergedWith = cells[row - 1][col];
-      cells[row][col].content = '';
-    });
-  }
+    selectedColumn=null;
+    selectedRow=null;
+
+    _updateTableSize(); // Update table size after adding column
+  });
 }
 
-void _mergeLeft(int row, int col) {
-  if (col > 0 &&
-      !cells[row][col].isMerged &&
-      !cells[row][col - 1].isMerged &&
-      cells[row][col - 1].colSpan == 1 &&
-      cells[row][col - 1].rowSpan == 1 &&
-      cells[row][col].colSpan == 1 &&
-      cells[row][col].rowSpan == 1) {
-    setState(() {
-      // Increase colSpan of the left cell
-     cells[row][col - 1].colSpan += cells[row][col].colSpan;
-      cells[row][col - 1].content += ' ${cells[row][col].content}';
-      // Mark the current cell as merged and reference the left cell
-      cells[row][col].isMerged = true;
-      cells[row][col].mergedWith = cells[row][col - 1];
-      cells[row][col].content = '';
-    });
-  }
+void _addRowAbove(int row) {
+  setState(() {
+    numRows++;
+
+    // Set the height of the new row to match the adjacent row
+    double adjacentRowHeight = rowHeights[row];
+    rowHeights.insert(row, adjacentRowHeight);
+
+    // Insert the new row's cells with default properties
+    cells.insert(row, List.generate(numCols, (col) => Cell(content: '', controller: TextEditingController())));
+
+    _updateTableSize(); // Update table size after adding row
+    selectedColumn=null;
+    selectedRow=null;
+  });
 }
 
-void _mergeRight(int row, int col) {
-  if (col + 1 < cells[row].length &&
-      !cells[row][col].isMerged &&
-      !cells[row][col + 1].isMerged &&
-      cells[row][col + 1].colSpan == 1 &&
-      cells[row][col + 1].rowSpan == 1 &&
-      cells[row][col].colSpan == 1 &&
-      cells[row][col].rowSpan == 1) {
-    setState(() {
-      // Increase colSpan of the current cell
-      cells[row][col].colSpan += cells[row][col + 1].colSpan;
-      cells[row][col].content += ' ${cells[row][col + 1].content}';
-      // Mark the right cell as merged and reference the current cell
-      cells[row][col + 1].isMerged = true;
-      cells[row][col + 1].mergedWith = cells[row][col];
-      cells[row][col + 1].content = '';
-    });
-  }
+void _addRowBelow(int row) {
+  setState(() {
+    numRows++;
+
+    // Set the height of the new row to match the adjacent row
+    double adjacentRowHeight = rowHeights[row];
+    rowHeights.insert(row + 1, adjacentRowHeight);
+
+    // Insert the new row's cells with default properties
+    cells.insert(row + 1, List.generate(numCols, (col) => Cell(content: '', controller: TextEditingController())));
+    selectedColumn=null;
+    selectedRow=null;
+
+    _updateTableSize(); // Update table size after adding row
+  });
 }
 
-void _mergeBottom(int row, int col) {
-  if (row + 1 < cells.length &&
-      !cells[row][col].isMerged &&
-      !cells[row + 1][col].isMerged &&
-      cells[row + 1][col].colSpan == 1 &&
-      cells[row + 1][col].rowSpan == 1 &&
-      cells[row][col].colSpan == 1 &&
-      cells[row][col].rowSpan == 1) {
-    setState(() {
-      cells[row][col].content = cells[row][col].content.isEmpty
-          ? cells[row + 1][col].content
-          : '${cells[row][col].content}\n${cells[row + 1][col].content}';
-      // Increase rowSpan of the current cell
-      cells[row][col].rowSpan += cells[row + 1][col].rowSpan;
-      // Mark the bottom cell as merged and reference the current cell
-      cells[row + 1][col].isMerged = true;
-      cells[row + 1][col].mergedWith = cells[row][col];
-      cells[row + 1][col].content = '';
-    });
-  }
-}
-
-
-  void _showCellOptionsDialog(int row, int col) {
+void  _showColorPickerDialog(int row, int col) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Choose your options'),
-          content: SizedBox(
-            width: 200,
-            height: 400,  
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    _mergeRight(row, col);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_forward),
-                      SizedBox(width: 8),
-                      Text('Merge Right'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    _mergeTop(row, col);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_upward),
-                      SizedBox(width: 8),
-                      Text('Merge Top'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    _mergeLeft(row, col);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_back),
-                      SizedBox(width: 8),
-                      Text('Merge Left'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    _mergeBottom(row, col);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_downward),
-                      SizedBox(width: 8),
-                      Text('Merge Bottom'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    print('Adding row above row $row');
-                    _addRowAbove(row);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_upward),
-                      SizedBox(width: 8),
-                      Text('Insert Row Above'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    print('Adding row below row $row');
-                    _addRowBelow(row);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_downward),
-                      SizedBox(width: 8),
-                      Text('Insert Row Below'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    print('Adding col left col $col');
-                    _addColumnLeft(col);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_back),
-                      SizedBox(width: 8),
-                      Text('Insert Column Left'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    print('Adding col right col $col');
-                    _addColumnRight(col);
-                    Navigator.of(context).pop();
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.arrow_forward),
-                      SizedBox(width: 8),
-                      Text('Insert Column Right'),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _showColorPickerDialog(row, col);
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.format_color_fill),
-                      SizedBox(width: 8),
-                      Text("Fill Color"), 
-                    ],
-                  ),
-                ),
-              ],
+          title: const Text('Pick a color'),
+          content: SingleChildScrollView(
+            child: BlockPicker(
+              pickerColor: cells[row][col].color,
+              onColorChanged: (color) {
+                setState(() {
+                  cells[row][col].color = color;
+                });
+              },
             ),
           ),
           actions: <Widget>[
             ElevatedButton(
-              child: const Text('Cancel'),
+              child: const Text('Done'),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -418,393 +407,363 @@ void _mergeBottom(int row, int col) {
     );
   }
 
-
-  void _addColumnLeft(int col) {
+void _resizeColumn(int col, DragUpdateDetails details) {
   setState(() {
-    numCols++;
+    double delta = details.delta.dx;
 
-    columnSelected.insert(col, false);
-    columnWidths.insert(col, defaultCellWidth);
-    for (int i = 0; i < numRows; i++) {
-      cells[i].insert(col, Cell(content: '', controller: TextEditingController()));
-    }
-    headerControllers.insert(col, TextEditingController(text: 'Column ${col + 1}'));
+    // Adjust the width of the selected column based on drag distance
+    double newWidth = columnWidths[col] + delta;
 
-    // Update column indices in header controllers                
-    for (int i = col + 1; i < headerControllers.length; i++) {
-      headerControllers[i].text = 'Column ${i + 1}';
-    }
-  });
-}
-
-  void _addColumnRight(int col) {
-    setState(() {
-      numCols++;
-      columnSelected.insert(col + 1, false);
-      columnWidths.insert(col + 1, defaultCellWidth);
-      for (int i = 0; i < numRows; i++) {
-        cells[i].insert(col + 1, Cell(content: '', controller: TextEditingController()));
-      }
-      headerControllers.insert(col + 1, TextEditingController(text: 'Column ${col + 2}'));
-
-      
-      for (int i = col + 2; i < headerControllers.length; i++) {
-        headerControllers[i].text = 'Column ${i + 1}';
-      }
-    });
-  }
-
-
-  void _addRowAbove(int row) {
-    setState(() {
-      numRows++;
-      rowHeights.insert(row, defaultCellHeight);
-      cells.insert(row, List.generate(numCols,
-          (col) => Cell(content: '', controller: TextEditingController())));
-    });
-  }
-
-  
-  void _addRowBelow(int row) {
-    setState(() {
-      numRows++;
-      rowHeights.insert(row + 1, defaultCellHeight);
-      cells.insert(row + 1, List.generate(numCols,
-          (col) => Cell(content: '', controller: TextEditingController())));
-    });
-  }
-
-    void _showColorPickerDialog(int row, int col) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Pick a color'),
-            content: SingleChildScrollView(
-              child: BlockPicker(
-                pickerColor: cells[row][col].color,
-                onColorChanged: (color) {
-                  setState(() {
-                    cells[row][col].color = color;
-                  });
-                },
-              ),
-            ),
-            actions: <Widget>[
-              ElevatedButton(
-                child: const Text('Done'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+    // Ensure the column width doesn't go below the minimum width
+    if (newWidth < minimumCellWidth) {
+      newWidth = minimumCellWidth;
     }
 
- void _resizeColumn(int col, DragUpdateDetails details) {
-  setState(() {
-    double delta = details.primaryDelta!;
-    double newWidth = (columnWidths[col] ?? defaultCellWidth) + delta;
+    // Calculate the difference between the old and new width
+    double widthDifference = columnWidths[col] - newWidth;
 
-    // Update the width of the column being resized
+    // Set the new width for the selected column
     columnWidths[col] = newWidth;
 
-    // Update widths for all columns in the merged group
-    for (int i = 0; i < numRows; i++) {
-      Cell cell = cells[i][col];
-      Cell? rootCell = cell.mergedWith ?? cell;
+    // Adjust the neighboring column (if it exists) to maintain the total table width
+    if (col + 1 < columnWidths.length) {
+      double neighborNewWidth = columnWidths[col + 1] + widthDifference;
 
-      if (rootCell != cell) {
-        // Find the start and end columns for the merged group
-        int startCol = col;
-        int endCol = col;
-
-        while (startCol > 0 && cells[i][startCol - 1].mergedWith == rootCell) {
-          startCol--;
-        }
-        while (endCol < numCols - 1 && cells[i][endCol + 1].mergedWith == rootCell) {
-          endCol++;
-        }
-
-        // Total width of the merged columns
-        double totalWidth = 0;
-        for (int j = startCol; j <= endCol; j++) {
-          totalWidth += columnWidths[j] ?? defaultCellWidth;
-        }
-
-        // Recalculate widths proportionally
-        double proportion = (columnWidths[col] ?? defaultCellWidth) / totalWidth;
-        for (int j = startCol; j <= endCol; j++) {
-          columnWidths[j] = proportion * (totalWidth + delta);
-        }
+      // Ensure the neighboring column width doesn't go below the minimum width
+      if (neighborNewWidth < minimumCellWidth) {
+        // If neighbor would go below minimum, adjust the delta to reduce the resizing
+        double extraWidth = minimumCellWidth - neighborNewWidth;
+        columnWidths[col] -= extraWidth;
+        neighborNewWidth = minimumCellWidth;
       }
+
+      // Adjust the neighboring column's width
+      columnWidths[col + 1] = neighborNewWidth;
+    } else if (col > 0) {
+      // If there's no column to the right, adjust the previous column
+      double prevNeighborNewWidth = columnWidths[col - 1] + widthDifference;
+
+      // Ensure the previous neighboring column width doesn't go below the minimum width
+      if (prevNeighborNewWidth < minimumCellWidth) {
+        // If previous neighbor would go below minimum, adjust the delta to reduce the resizing
+        double extraWidth = minimumCellWidth - prevNeighborNewWidth;
+        columnWidths[col] -= extraWidth;
+        prevNeighborNewWidth = minimumCellWidth;
+      }
+
+      // Adjust the previous column's width
+      columnWidths[col - 1] = prevNeighborNewWidth;
     }
+
+    // Ensure the total table width remains constant
+    _updateTableSizeWithFixedTotalWidth();
   });
 }
-
 
 void _resizeRow(int row, DragUpdateDetails details) {
   setState(() {
-    double delta = details.primaryDelta!;
-    double newHeight = (rowHeights[row] ?? defaultCellHeight) + delta;
+    double delta = details.delta.dy;
 
+    // Adjust the height of the selected row based on drag distance
+    double newHeight = rowHeights[row] + delta;
+
+    // Ensure the row height doesn't go below the minimum height
+    if (newHeight < minimumCellHeight) {
+      newHeight = minimumCellHeight;
+    }
+
+    // Calculate the difference between the old and new height
+    double heightDifference = rowHeights[row] - newHeight;
+
+    // Set the new height for the selected row
     rowHeights[row] = newHeight;
 
-    // Adjust heights of merged cells
-    for (int i = 0; i < numCols; i++) {
-      var rootCell = cells[row][i].mergedWith ?? cells[row][i];
-      if (rootCell != cells[row][i]) {
-        int startRow = row;
-        int endRow = row;
+    // Adjust the neighboring row (if it exists) to maintain the total table height
+    if (row + 1 < rowHeights.length) {
+      double neighborNewHeight = rowHeights[row + 1] + heightDifference;
 
-        // Find the  start and end rows based on merges
-        while (startRow > 0 && cells[startRow - 1][i].mergedWith == rootCell) {
-          startRow--;
-        }
-        while (endRow < numRows - 1 && cells[endRow + 1][i].mergedWith == rootCell) {
-          endRow++;
-        }
-
-        // Total height of the merged rows
-        double totalHeight = 0;
-        for (int j = startRow; j <= endRow; j++) {
-          totalHeight += rowHeights[j] ?? defaultCellHeight;
-        }
-
-        for (int j = startRow; j <= endRow; j++) {
-          double proportion = (rowHeights[j] ?? defaultCellHeight) / totalHeight;
-          rowHeights[j] = proportion * (totalHeight + delta);
-        }
+      // Ensure the neighboring row height doesn't go below the minimum height
+      if (neighborNewHeight < minimumCellHeight) {
+        // If neighbor would go below minimum, adjust the delta to reduce the resizing
+        double extraHeight = minimumCellHeight - neighborNewHeight;
+        rowHeights[row] -= extraHeight;
+        neighborNewHeight = minimumCellHeight;
       }
+
+      // Adjust the neighboring row's height
+      rowHeights[row + 1] = neighborNewHeight;
+    } else if (row > 0) {
+      // If there's no row below, adjust the previous row
+      double prevNeighborNewHeight = rowHeights[row - 1] + heightDifference;
+
+      // Ensure the previous neighboring row height doesn't go below the minimum height
+      if (prevNeighborNewHeight < minimumCellHeight) {
+        // If previous neighbor would go below minimum, adjust the delta to reduce the resizing
+        double extraHeight = minimumCellHeight - prevNeighborNewHeight;
+        rowHeights[row] -= extraHeight;
+        prevNeighborNewHeight = minimumCellHeight;
+      }
+
+      // Adjust the previous row's height
+      rowHeights[row - 1] = prevNeighborNewHeight;
     }
+
+    // Ensure the total table height remains constant
+    _updateTableSizeWithFixedTotalHeight();
   });
 }
 
+void _updateTableSizeWithFixedTotalWidth() {
+  // Ensure the total width of the table remains constant
+  double totalColumnWidth = columnWidths.reduce((a, b) => a + b);
+  double fixedTableWidth = tableWidth;
+
+  if (totalColumnWidth != fixedTableWidth) {
+    // Adjust the last column to make sure the total width remains constant
+    double adjustment = fixedTableWidth - totalColumnWidth;
+    columnWidths[columnWidths.length - 1] += adjustment;
+  }
+}
+
+void _updateTableSizeWithFixedTotalHeight() {
+  // Ensure the total height of the table remains constant
+  double totalRowHeight = rowHeights.reduce((a, b) => a + b);
+  double fixedTableHeight = tableHeight;  
+
+  if (totalRowHeight != fixedTableHeight) {
+    // Adjust the last row to make sure the total height remains constant
+    double adjustment = fixedTableHeight - totalRowHeight;
+    rowHeights[rowHeights.length - 1] += adjustment;
+  }
+}
+
+
     @override
     Widget build(BuildContext context) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Dynamic Table Assignment'),
-        ),
-        body: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: SizedBox(
-              width: (numCols +
-                      2) * // Increased by 2 to accommodate the Actions column and the extra column for dragging and deleting
-                  (columnWidths.isNotEmpty
-                      ? columnWidths.reduce((a, b) => a + b)
-                      : defaultCellWidth), // +1 for the Actions column
-              height: (numRows + 1) *
-                  (rowHeights.isNotEmpty
-                      ? rowHeights.reduce((a, b) => a + b)
-                      : defaultCellHeight), // +1 for the header row
-              child: Stack(
-                children: [
-                  // Headers
-                  for (int col = 0; col < numCols; col++)
-                    Positioned(
-                      left: columnWidths
-                          .sublist(0, col)
-                          .fold(0.0, (sum, w) => (sum ?? 0) + (w ?? 0)),
-                      top: 0,
-                      width: columnWidths[col],
-                      height: defaultCellHeight,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            border: Border.all(color: Colors.black),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Checkbox(
-                                value: columnSelected[col],
-                                onChanged: (bool? value) {
-                                  setState(() {
-                                    columnSelected[col] = value ?? false;
-                                  });
-                                },
-                              ),
-                              Expanded(
-                                child: Text(
-                                  headerControllers[col].text,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+
+    return Scaffold(
+    body: Stack(
+    children: [
+      // Positioned for the draggable and resizable table
+      Positioned(
+        left: tablePosition.dx,
+        top: tablePosition.dy,
+        child: GestureDetector(
+          onPanUpdate: _onMoveTable, // Dragging the entire table
+          child: Stack(
+            children: [
+              // The original scrollable table
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SizedBox(
+                    width: columnWidths.isNotEmpty? columnWidths.reduce((a, b) => a + b): numCols * defaultCellWidth,
+                    height: rowHeights.isNotEmpty? rowHeights.reduce((a, b) => a + b): numRows * defaultCellHeight,
+                     child: Stack(
+                      children: [
+                        // Cell Rendering
+                        for (int row = 0; row < numRows; row++)
+                          for (int col = 0; col < numCols; col++)
+                              Positioned(
+                                left: columnWidths.sublist(0, col).fold(0.0, (sum, w) => (sum ?? 0) + (w)),
+                                top: rowHeights.sublist(0, row).fold(0.0,(sum, h) => (sum ?? 0) + (h)),
+                                width: columnWidths.sublist(col, col + cells[row][col].colSpan).fold(0.0, (sum,w) =>(sum ?? 0) + (w)),
+                                height:  rowHeights.sublist(row, row + cells[row][col].rowSpan).fold(0.0, (sum, h) => (sum ?? 0) + (h)),
+                                child: GestureDetector(
+                                  onDoubleTap: () {
+                                    _showCellOptionsDialog(row, col);
+                                  },
+                               
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: cells[row][col].color,
+                                      ),
+                                      child: DottedBorder(
+                                        color: Colors.black,
+                                        strokeWidth: 1,
+                                        dashPattern: const [6,3,6,3],
+                                        child: TextField(
+                                          onTap: ()=> _onCellTap(row, col),
+                                          controller: cells[row][col].controller,
+                                          maxLines: null,
+                                          decoration: const InputDecoration(
+                                            hintText: "Add Data",
+                                            contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                                            border: InputBorder.none,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.edit, size: 20),
-                                onPressed: () {
-                                  _showEditDialog(col);
-                                },
-                              ),
-                              const VerticalDivider(
-                                thickness: 1,
-                                color: Colors.grey,
-                                width: 10,
-                                indent: 7,
-                                endIndent: 7,
-                              ),
-                              GestureDetector(
-                                onHorizontalDragUpdate: (details) {
-                                  _resizeColumn(col, details);
-                                },
-                                child: const MouseRegion(
-                                  cursor: SystemMouseCursors.resizeColumn,
-                                  child: Icon(Icons.drag_indicator),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  // Actions column header
-                  Positioned(
-                    left: columnWidths
-                        .sublist(0, numCols)
-                        .fold(0.0, (sum, w) => (sum ?? 0) + (w ?? 0)),
-                    top: 0,
-                    width: defaultCellWidth,
-                    height: defaultCellHeight,
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        border: Border.all(color: Colors.black),
-                      ),
-                      child: const Text(
-                        'Actions',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+
+                                 // Create resize handlers for the selected column
+                              if (selectedColumn != null) ...[
+                                // Handler for the selected column
+                                if (selectedColumn! < columnWidths.length - 1) // Exclude the last column from having a resize handler
+                                  Positioned(
+                                    left: columnWidths.sublist(0, selectedColumn! + 1).fold(0.0, (sum, w) => sum + w) - 10,
+                                    top: 0,
+                                    child: GestureDetector(
+                                      onPanUpdate: (details) => _resizeColumn(selectedColumn!, details),
+                                      onPanEnd: (details) {
+                                        // setState(() {
+                                        //   selectedColumn = null; // Reset selected column after resizing
+                                        // });
+                                      },
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        color: Colors.blue,
+                                        child: const MouseRegion(
+                                          cursor: SystemMouseCursors.resizeColumn,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.drag_handle,
+                                              size: 20,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                // Handler for the column beside the selected column (previous or next)
+                                if (selectedColumn! > 0)
+                                  Positioned(
+                                    left: columnWidths.sublist(0, selectedColumn!).fold(0.0, (sum, w) => sum + w) - 10,
+                                    top: 0,
+                                    child: GestureDetector(
+                                      onPanUpdate: (details) => _resizeColumn(selectedColumn! - 1, details),
+                                      onPanEnd: (details) {
+                                        // setState(() {
+                                        //   selectedColumn = null; // Reset selected column after resizing
+                                        // });
+                                      },
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        color: Colors.blue,
+                                        child: const MouseRegion(
+                                          cursor: SystemMouseCursors.resizeColumn,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.drag_handle,
+                                              size: 20,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+
+                              // Create resize handlers for the selected row
+                              if (selectedRow != null) ...[
+                                // Handler for the selected row
+                                if (selectedRow! < rowHeights.length - 1) // Exclude the last row from having a resize handler
+                                  Positioned(
+                                    left: -10,
+                                    top: rowHeights.sublist(0, selectedRow! + 1).fold(0.0, (sum, h) => sum + h) - 10,
+                                    child: GestureDetector(
+                                      onPanUpdate: (details) => _resizeRow(selectedRow!, details),
+                                      onPanEnd: (details) {
+                                        // setState(() {
+                                        //   selectedRow = null; // Reset selected row after resizing
+                                        // });
+                                      },
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        color: Colors.green,
+                                        child: const MouseRegion(
+                                          cursor: SystemMouseCursors.resizeRow,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.drag_handle,
+                                              size: 20,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                // Handler for the row above the selected row
+                                if (selectedRow! > 0)
+                                  Positioned(
+                                    left: -10,
+                                    top: rowHeights.sublist(0, selectedRow!).fold(0.0, (sum, h) => sum + h) - 10,
+                                    child: GestureDetector(
+                                      onPanUpdate: (details) => _resizeRow(selectedRow! - 1, details),
+                                      onPanEnd: (details) {
+                                        // setState(() {
+                                        //   selectedRow = null; // Reset selected row after resizing
+                                        // });
+                                      },
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        color: Colors.green,
+                                        child: const MouseRegion(
+                                          cursor: SystemMouseCursors.resizeRow,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.drag_handle,
+                                              size: 20,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+ 
+                              ],
+                      ], 
                     ),
                   ),
-                  // Rows and Actions column with delete buttons
-                  for (int row = 0; row < numRows; row++) 
-                    for (int col = 0; col < numCols; col++)
-                      if (!cells[row][col].isMerged)
-                        Positioned(
-                          left: columnWidths
-                              .sublist(0, col)
-                              .fold(0.0, (sum, w) => (sum ?? 0) + (w ?? 0)),
-                          top: rowHeights.sublist(0, row).fold(defaultCellHeight,
-                              (sum, h) => (sum ?? 0) + (h ?? 0)),
-                          width: columnWidths.sublist(col, col + cells[row][col].colSpan).fold(0.0, (sum,w) =>(sum ?? 0) + (w ?? defaultCellWidth)),
-                          height:  rowHeights.sublist(row, row + cells[row][col].rowSpan).fold(0.0, (sum, h) => (sum ?? 0) + (h ?? defaultCellHeight)),
-                          child: GestureDetector(
-                            onDoubleTap: () {
-                              _showCellOptionsDialog(row, col);
-                            },
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: cells[row][col].color,
-                                  border: Border.all(color: Colors.black),
-                                ),
-                                child: TextField(
-                                  controller: cells[row][col].controller,
-                                  maxLines: null,
-                                  decoration: const InputDecoration(
-                                    hintText: "Add Data",
-                                    contentPadding:
-                                        EdgeInsets.symmetric(horizontal: 8),
-                                    border: InputBorder.none,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                  // Actions column buttons
-                  for (int row = 0; row < numRows; row++)
-                    Positioned(
-                      left: columnWidths
-                          .sublist(0, numCols)
-                          .fold(0.0, (sum, w) => (sum ?? 0) + (w ?? 0)),
-                      top: rowHeights.sublist(0, row).fold(
-                          defaultCellHeight, (sum, h) => (sum ?? 0) + (h ?? 0)),
-                      width: defaultCellWidth,
-                      height: rowHeights[row],
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: Colors.black),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            GestureDetector(
-                              onVerticalDragUpdate: (details) {
-                                _resizeRow(row, details);
-                              },
-                              child: const MouseRegion(
-                                cursor: SystemMouseCursors.resizeRow,
-                                child: Icon(Icons.drag_indicator),
-                              ),
-                            ),
-                            const VerticalDivider(
-                              thickness: 1,
-                              color: Colors.grey,
-                              width: 10,
-                              indent: 7,
-                              endIndent: 7,
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () {
-                                _deleteRow(row);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+                   
+                ),
               ),
-            ),
+      
+            ],
           ),
+          
         ),
         
-            floatingActionButton:FloatingActionButton(
-              onPressed: _deleteSelectedColumns,
-              tooltip: 'Delete',
-              child: const Icon(Icons.delete),
-            ),
-      );
+      ),
+      
+    ],
+    
+  ),
+  
+  );
     }
   }
-
-
+ 
 
   class Cell {
-    String content;
-    bool isMerged;
-    int colSpan;
-    int rowSpan;
-    TextEditingController controller;
-    Color color;
-    Cell? mergedWith;
+  String content;
+  int colSpan;
+  int rowSpan;
+  TextEditingController controller;
+  Color color;
 
-    Cell({
-      required this.content,
-      this.isMerged = false,
-      this.colSpan = 1,
-      this.rowSpan = 1,
-      required this.controller,
-      this.color = Colors.white,
-      this.mergedWith,
-    });
+  Cell({
+    required this.content,
+    this.colSpan = 1,
+    this.rowSpan = 1,
+    required this.controller,
+    this.color = Colors.white,
+  });
+
   }
+  
