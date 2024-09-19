@@ -17,7 +17,6 @@ import 'package:dotted_border/dotted_border.dart';
     }
   }
 
-
   class DynamicTableScreen extends StatefulWidget {
     const DynamicTableScreen({super.key});
 
